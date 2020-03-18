@@ -49,6 +49,10 @@ public class DarwinFileWatcherRegistry extends AbstractEventDrivenFileWatcherReg
     }
 
     public static class Factory implements FileWatcherRegistryFactory {
+        public Factory() {
+            Native.get(OsxFileEventFunctions.class);
+        }
+
         @Override
         public FileWatcherRegistry startWatching(SnapshotHierarchy snapshotHierarchy, Predicate<String> watchFilter, Collection<File> mustWatchDirectories, ChangeHandler handler) {
             Set<String> mustWatchDirectoryPrefixes = ImmutableSet.copyOf(

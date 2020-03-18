@@ -46,6 +46,10 @@ public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegi
     }
 
     public static class Factory implements FileWatcherRegistryFactory {
+        public Factory() {
+            Native.get(LinuxFileEventFunctions.class);
+        }
+
         @Override
         public FileWatcherRegistry startWatching(SnapshotHierarchy root, Predicate<String> watchFilter, Collection<File> mustWatchDirectories, ChangeHandler handler) {
             try {

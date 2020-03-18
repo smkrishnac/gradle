@@ -43,6 +43,10 @@ public class WindowsFileWatcherRegistry extends AbstractEventDrivenFileWatcherRe
     }
 
     public static class Factory implements FileWatcherRegistryFactory {
+        public Factory() {
+            Native.get(WindowsFileEventFunctions.class);
+        }
+
         @Override
         public FileWatcherRegistry startWatching(SnapshotHierarchy snapshotHierarchy, Predicate<String> watchFilter, Collection<File> mustWatchDirectories, ChangeHandler handler) {
             Set<String> directories = WatchRootUtil.resolveDirectoriesToWatch(snapshotHierarchy, watchFilter, mustWatchDirectories);
