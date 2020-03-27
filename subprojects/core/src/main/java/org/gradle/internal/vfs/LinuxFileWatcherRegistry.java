@@ -73,7 +73,7 @@ public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegi
         watchedSnapshots.values().stream()
             .filter(snapshot -> getWatchFilter().test(snapshot.getAbsolutePath()))
             .forEach(snapshot -> {
-                WatchRootUtil.getDirectoriesToWatch(snapshot).map(Path::toString).forEach(directoriesToWatch::add);
+                WatchRootUtil.getDirectoriesToWatch(snapshot).stream().map(Path::toString).forEach(directoriesToWatch::add);
                 snapshot.accept(new FileSystemSnapshotVisitor() {
                     boolean root = true;
 

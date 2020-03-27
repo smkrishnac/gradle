@@ -16,7 +16,11 @@
 
 package org.gradle.internal.vfs;
 
+import com.google.common.collect.HashMultiset;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Multiset;
+import com.google.common.collect.Multisets;
 import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot;
 import org.gradle.internal.vfs.watch.WatchRootUtil;
 import org.slf4j.Logger;
@@ -35,7 +39,8 @@ import java.util.stream.Collectors;
 public abstract class AbstractHierarchicalFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegistry {
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractHierarchicalFileWatcherRegistry.class);
 
-    private final Map<String, CompleteFileSystemLocationSnapshot> watchedSnapshots = new HashMap<>();
+    private final Map<String, ImmutableList<Path>> watchedRootsForSnapshot = new HashMap<>();
+    private final Multiset<Path> shouldWatchDirectories = HashMultiset.create();
     private final Set<Path> watchedRoots = new HashSet<>();
     private final Set<Path> mustWatchDirectories = new HashSet<>();
 
@@ -45,8 +50,15 @@ public abstract class AbstractHierarchicalFileWatcherRegistry extends AbstractEv
 
     @Override
     protected void handleChanges(Collection<CompleteFileSystemLocationSnapshot> removedSnapshots, Collection<CompleteFileSystemLocationSnapshot> addedSnapshots) {
-        removedSnapshots.forEach(snapshot -> watchedSnapshots.remove(snapshot.getAbsolutePath()));
-        addedSnapshots.forEach(snapshot -> watchedSnapshots.put(snapshot.getAbsolutePath(), snapshot));
+        removedSnapshots.forEach(snapshot -> {
+            ImmutableList<Path> previouslyWatchedRootsForSnapshot = watchedRootsForSnapshot.remove(snapshot.getAbsolutePath());
+            Multisets.removeOccurrences(shouldWatchDirectories, previouslyWatchedRootsForSnapshot);
+        });
+        addedSnapshots.forEach(snapshot -> {
+            ImmutableList<Path> directoriesToWatch = WatchRootUtil.getDirectoriesToWatch(snapshot);
+            shouldWatchDirectories.addAll(directoriesToWatch);
+            watchedRootsForSnapshot.put(snapshot.getAbsolutePath(), directoriesToWatch);
+        });
         updateWatchedDirectories();
     }
 
@@ -55,8 +67,10 @@ public abstract class AbstractHierarchicalFileWatcherRegistry extends AbstractEv
         Set<String> rootPaths = updatedWatchDirectories.stream()
             .map(File::getAbsolutePath)
             .collect(Collectors.toSet());
+        Multisets.removeOccurrences(shouldWatchDirectories, mustWatchDirectories);
         mustWatchDirectories.clear();
         mustWatchDirectories.addAll(WatchRootUtil.resolveRootsToWatch(rootPaths));
+        shouldWatchDirectories.addAll(mustWatchDirectories);
         updateWatchedDirectories();
     }
 
@@ -66,9 +80,11 @@ public abstract class AbstractHierarchicalFileWatcherRegistry extends AbstractEv
                 .map(path -> path.toString() + File.separator)
                 ::iterator
         );
-        Set<Path> directoriesToWatch = watchedSnapshots.values().stream()
-            .filter(snapshot -> getWatchFilter().test(snapshot.getAbsolutePath()) || startsWithAnyPrefix(snapshot.getAbsolutePath(), mustWatchDirectoryPrefixes))
-            .flatMap(WatchRootUtil::getDirectoriesToWatch)
+        Set<Path> directoriesToWatch = shouldWatchDirectories.elementSet().stream()
+            .filter(path -> {
+                String absolutePath = path.toString();
+                return getWatchFilter().test(absolutePath) || startsWithAnyPrefix(absolutePath, mustWatchDirectoryPrefixes);
+            })
             .collect(Collectors.toSet());
         directoriesToWatch.addAll(mustWatchDirectories);
 

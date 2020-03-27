@@ -16,6 +16,7 @@
 
 package org.gradle.internal.vfs.watch;
 
+import com.google.common.collect.ImmutableList;
 import org.gradle.internal.file.FileType;
 import org.gradle.internal.snapshot.CompleteDirectorySnapshot;
 import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot;
@@ -30,7 +31,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class WatchRootUtil {
     /**
@@ -144,7 +144,7 @@ public class WatchRootUtil {
         return watchedDirectories;
     }
 
-    public static Stream<Path> getDirectoriesToWatch(CompleteFileSystemLocationSnapshot snapshot) {
+    public static ImmutableList<Path> getDirectoriesToWatch(CompleteFileSystemLocationSnapshot snapshot) {
         Path path = Paths.get(snapshot.getAbsolutePath());
 
         // For existing files and directories we watch the parent directory,
@@ -164,8 +164,8 @@ public class WatchRootUtil {
                 throw new AssertionError();
         }
         return snapshot.getType() == FileType.Directory
-            ? Stream.of(ancestorToWatch, path)
-            : Stream.of(ancestorToWatch);
+            ? ImmutableList.of(ancestorToWatch, path)
+            : ImmutableList.of(ancestorToWatch);
 
     }
 
