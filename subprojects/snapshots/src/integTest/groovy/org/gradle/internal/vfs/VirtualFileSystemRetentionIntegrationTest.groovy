@@ -26,6 +26,7 @@ import org.gradle.test.fixtures.server.http.BlockingHttpServer
 import org.gradle.util.Requires
 import org.gradle.util.TestPrecondition
 import org.junit.Rule
+import spock.lang.Ignore
 import spock.lang.IgnoreIf
 import spock.lang.Issue
 
@@ -597,6 +598,7 @@ class VirtualFileSystemRetentionIntegrationTest extends AbstractIntegrationSpec 
         failureHasCause("Boom")
     }
 
+    @Ignore("FIXME wolfs: Ignore test for now")
     @Issue("https://github.com/gradle/gradle/issues/11851")
     @Requires(TestPrecondition.SYMLINKS)
     def "gracefully handle when watching the same path via symlinks"() {
