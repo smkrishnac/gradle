@@ -16,6 +16,10 @@
 
 package org.gradle.internal.vfs;
 
+import com.google.common.collect.HashMultiset;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Multiset;
+import com.google.common.util.concurrent.AtomicLongMap;
 import net.rubygrapefruit.platform.Native;
 import net.rubygrapefruit.platform.NativeException;
 import net.rubygrapefruit.platform.internal.jni.LinuxFileEventFunctions;
@@ -42,8 +46,9 @@ import java.util.stream.Collectors;
 public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegistry {
     private static final Logger LOGGER = LoggerFactory.getLogger(LinuxFileWatcherRegistry.class);
     private final Map<String, CompleteFileSystemLocationSnapshot> watchedSnapshots = new HashMap<>();
-    private final Set<String> watchedRoots = new HashSet<>();
+    private final Multiset<String> watchedRoots = HashMultiset.create();
     private final Set<String> mustWatchDirectories = new HashSet<>();
+    private final Map<String, ImmutableList<String>> watchedRootsForSnapshot = new HashMap<>();
 
     public LinuxFileWatcherRegistry(Predicate<String> watchFilter, ChangeHandler handler) {
         super(
@@ -55,77 +60,109 @@ public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegi
 
     @Override
     protected void handleChanges(Collection<CompleteFileSystemLocationSnapshot> removedSnapshots, Collection<CompleteFileSystemLocationSnapshot> addedSnapshots) {
-        removedSnapshots.forEach(snapshot -> watchedSnapshots.remove(snapshot.getAbsolutePath()));
-        addedSnapshots.forEach(snapshot -> watchedSnapshots.put(snapshot.getAbsolutePath(), snapshot));
-        updateWatchedDirectories();
+        AtomicLongMap<String> changedWatchedDirectories = AtomicLongMap.create();
+
+        removedSnapshots.forEach(snapshot -> {
+            ImmutableList<String> previousWatchedRoots = watchedRootsForSnapshot.remove(snapshot.getAbsolutePath());
+            previousWatchedRoots.forEach(changedWatchedDirectories::decrementAndGet);
+            snapshot.accept(new FileSystemSnapshotVisitor() {
+                boolean root = true;
+
+                @Override
+                public boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
+                    if (!root) {
+                        changedWatchedDirectories.decrementAndGet(directorySnapshot.getAbsolutePath());
+                    }
+                    root = false;
+                    return true;
+                }
+
+                @Override
+                public void visitFile(CompleteFileSystemLocationSnapshot fileSnapshot) {
+                }
+
+                @Override
+                public void postVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
+                }
+            });
+
+        });
+        addedSnapshots.forEach(snapshot -> {
+            ImmutableList<String> directoriesToWatchForRoot = ImmutableList.copyOf(WatchRootUtil.getDirectoriesToWatch(snapshot).stream()
+                .map(Path::toString).collect(Collectors.toList()));
+            watchedRootsForSnapshot.put(snapshot.getAbsolutePath(), directoriesToWatchForRoot);
+            directoriesToWatchForRoot.forEach(changedWatchedDirectories::incrementAndGet);
+            snapshot.accept(new FileSystemSnapshotVisitor() {
+                boolean root = true;
+
+                @Override
+                public boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
+                    if (!root) {
+                        changedWatchedDirectories.incrementAndGet(directorySnapshot.getAbsolutePath());
+                    }
+                    root = false;
+                    return true;
+                }
+
+                @Override
+                public void visitFile(CompleteFileSystemLocationSnapshot fileSnapshot) {
+                }
+
+                @Override
+                public void postVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
+                }
+            });
+
+        });
+        updateWatchedDirectories(changedWatchedDirectories);
     }
 
     @Override
     public void updateMustWatchDirectories(Collection<File> updatedWatchDirectories) {
+        AtomicLongMap<String> changedDirectories = AtomicLongMap.create();
+        mustWatchDirectories.forEach(changedDirectories::decrementAndGet);
         mustWatchDirectories.clear();
         updatedWatchDirectories.stream().map(File::getAbsolutePath).forEach(mustWatchDirectories::add);
-        updateWatchedDirectories();
+        mustWatchDirectories.forEach(changedDirectories::incrementAndGet);
+        updateWatchedDirectories(changedDirectories);
 
     }
 
-    private void updateWatchedDirectories() {
-        Set<String> directoriesToWatch = new HashSet<>();
-        watchedSnapshots.values().stream()
-            .filter(snapshot -> getWatchFilter().test(snapshot.getAbsolutePath()))
-            .forEach(snapshot -> {
-                WatchRootUtil.getDirectoriesToWatch(snapshot).stream().map(Path::toString).forEach(directoriesToWatch::add);
-                snapshot.accept(new FileSystemSnapshotVisitor() {
-                    boolean root = true;
-
-                    @Override
-                    public boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
-                        if (!root) {
-                            directoriesToWatch.add(directorySnapshot.getAbsolutePath());
-                        }
-                        root = false;
-                        return true;
-                    }
-
-                    @Override
-                    public void visitFile(CompleteFileSystemLocationSnapshot fileSnapshot) {
-                    }
-
-                    @Override
-                    public void postVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
-                    }
-                });
-            });
-        directoriesToWatch.addAll(mustWatchDirectories);
-
-        updateWatchedDirectories(directoriesToWatch);
-    }
-
-    private void updateWatchedDirectories(Set<String> newWatchRoots) {
-        Set<String> watchRootsToRemove = new HashSet<>(watchedRoots);
-        if (newWatchRoots.isEmpty()) {
-            LOGGER.warn("Not watching anything anymore");
-        }
-        watchRootsToRemove.removeAll(newWatchRoots);
-        newWatchRoots.removeAll(watchedRoots);
-        if (newWatchRoots.isEmpty() && watchRootsToRemove.isEmpty()) {
+    private void updateWatchedDirectories(AtomicLongMap<String> changedWatchDirectories) {
+        if (changedWatchDirectories.isEmpty()) {
             return;
         }
-        LOGGER.warn("Watching {} directory hierarchies to track changes", newWatchRoots.size());
+        Set<File> watchRootsToRemove = new HashSet<>();
+        Set<File> watchRootsToAdd = new HashSet<>();
+        changedWatchDirectories.asMap().entrySet().forEach(entry -> {
+            String absolutePath = entry.getKey();
+            int count = entry.getValue().intValue();
+            if (count < 0) {
+                int toRemove = -count;
+                int contained = watchedRoots.remove(absolutePath, toRemove);
+                if (contained <= toRemove) {
+                    watchRootsToRemove.add(new File(absolutePath));
+                }
+            } else if (count > 0) {
+                int contained = watchedRoots.add(absolutePath, count);
+                if (contained == 0) {
+                    watchRootsToAdd.add(new File(absolutePath));
+                }
+            }
+        });
+        if (watchedRoots.isEmpty()) {
+            LOGGER.warn("Not watching anything anymore");
+        }
+        LOGGER.warn("Watching {} directory hierarchies to track changes", watchedRoots.entrySet().size());
         try {
-            getWatcher().startWatching(newWatchRoots.stream()
-                .map(File::new)
-                .collect(Collectors.toList()));
-            getWatcher().stopWatching(watchRootsToRemove.stream()
-                .map(File::new)
-                .collect(Collectors.toList()));
+            getWatcher().stopWatching(watchRootsToRemove);
+            getWatcher().startWatching(watchRootsToAdd);
         } catch (NativeException e) {
             if (e.getMessage().contains("Already watching path: ")) {
                 throw new WatchingNotSupportedException("Unable to watch same file twice via different paths: " + e.getMessage(), e);
             }
             throw e;
         }
-        watchedRoots.addAll(newWatchRoots);
-        watchedRoots.removeAll(watchRootsToRemove);
     }
 
     public static class Factory implements FileWatcherRegistryFactory {
