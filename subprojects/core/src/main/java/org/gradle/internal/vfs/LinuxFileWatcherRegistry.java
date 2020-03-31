@@ -39,12 +39,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegistry {
     private static final Logger LOGGER = LoggerFactory.getLogger(LinuxFileWatcherRegistry.class);
-    private final Map<String, CompleteFileSystemLocationSnapshot> watchedSnapshots = new HashMap<>();
+
     private final Multiset<String> watchedRoots = HashMultiset.create();
     private final Set<String> mustWatchDirectories = new HashSet<>();
     private final Map<String, ImmutableList<String>> watchedRootsForSnapshot = new HashMap<>();
@@ -64,54 +65,14 @@ public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegi
         removedSnapshots.forEach(snapshot -> {
             ImmutableList<String> previousWatchedRoots = watchedRootsForSnapshot.remove(snapshot.getAbsolutePath());
             previousWatchedRoots.forEach(path -> decrement(path, changedWatchedDirectories));
-            snapshot.accept(new FileSystemSnapshotVisitor() {
-                boolean root = true;
-
-                @Override
-                public boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
-                    if (!root) {
-                        decrement(directorySnapshot.getAbsolutePath(), changedWatchedDirectories);
-                    }
-                    root = false;
-                    return true;
-                }
-
-                @Override
-                public void visitFile(CompleteFileSystemLocationSnapshot fileSnapshot) {
-                }
-
-                @Override
-                public void postVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
-                }
-            });
-
+            snapshot.accept(new OnlyVisitSubDirectories(path -> decrement(path, changedWatchedDirectories)));
         });
         addedSnapshots.forEach(snapshot -> {
             ImmutableList<String> directoriesToWatchForRoot = ImmutableList.copyOf(WatchRootUtil.getDirectoriesToWatch(snapshot).stream()
                 .map(Path::toString).collect(Collectors.toList()));
             watchedRootsForSnapshot.put(snapshot.getAbsolutePath(), directoriesToWatchForRoot);
             directoriesToWatchForRoot.forEach(path -> increment(path, changedWatchedDirectories));
-            snapshot.accept(new FileSystemSnapshotVisitor() {
-                boolean root = true;
-
-                @Override
-                public boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
-                    if (!root) {
-                        increment(directorySnapshot.getAbsolutePath(), changedWatchedDirectories);
-                    }
-                    root = false;
-                    return true;
-                }
-
-                @Override
-                public void visitFile(CompleteFileSystemLocationSnapshot fileSnapshot) {
-                }
-
-                @Override
-                public void postVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
-                }
-            });
-
+            snapshot.accept(new OnlyVisitSubDirectories(path -> increment(path, changedWatchedDirectories)));
         });
         updateWatchedDirectories(changedWatchedDirectories);
     }
@@ -175,10 +136,36 @@ public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegi
     }
 
     public static class Factory implements FileWatcherRegistryFactory {
-
         @Override
         public FileWatcherRegistry startWatcher(Predicate<String> watchFilter, ChangeHandler handler) {
             return new LinuxFileWatcherRegistry(watchFilter, handler);
+        }
+    }
+
+    private static class OnlyVisitSubDirectories implements FileSystemSnapshotVisitor {
+        private final Consumer<String> subDirectoryConsumer;
+        boolean root;
+
+        public OnlyVisitSubDirectories(Consumer<String> subDirectoryConsumer) {
+            this.subDirectoryConsumer = subDirectoryConsumer;
+            root = true;
+        }
+
+        @Override
+        public boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
+            if (!root) {
+                subDirectoryConsumer.accept(directorySnapshot.getAbsolutePath());
+            }
+            root = false;
+            return true;
+        }
+
+        @Override
+        public void visitFile(CompleteFileSystemLocationSnapshot fileSnapshot) {
+        }
+
+        @Override
+        public void postVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
         }
     }
 }
