@@ -20,7 +20,6 @@ import org.gradle.internal.file.FileType;
 import org.gradle.internal.hash.HashCode;
 import org.gradle.internal.vfs.SnapshotHierarchy;
 
-import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
@@ -65,11 +64,6 @@ public class RegularFileSnapshot extends AbstractCompleteFileSystemLocationSnaps
     @Override
     public void accept(FileSystemSnapshotVisitor visitor) {
         visitor.visitFile(this);
-    }
-
-    @Override
-    public void accept(NodeVisitor visitor, @Nullable FileSystemNode parent) {
-        visitor.visitNode(this, parent);
     }
 
     @Override

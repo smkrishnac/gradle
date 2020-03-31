@@ -206,11 +206,7 @@ public class DefaultVirtualFileSystem extends AbstractVirtualFileSystem {
     public void invalidateAll() {
         updateRoot((root, changeListener) -> {
             // TODO: Close/restart watching here.
-            root.visitSnapshots((snapshot, rootOfCompleteHierarchy) -> {
-                if (rootOfCompleteHierarchy) {
-                    changeListener.nodeRemoved(snapshot);
-                }
-            });
+            root.visitSnapshotRoots(changeListener::nodeRemoved);
             return root.empty();
         });
     }

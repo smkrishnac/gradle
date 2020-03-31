@@ -18,7 +18,6 @@ package org.gradle.internal.vfs.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.gradle.internal.snapshot.CaseSensitivity;
-import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot;
 import org.gradle.internal.snapshot.FileSystemNode;
 import org.gradle.internal.snapshot.MetadataSnapshot;
 import org.gradle.internal.snapshot.VfsRelativePath;
@@ -87,15 +86,8 @@ public class DefaultSnapshotHierarchy implements SnapshotHierarchy {
     }
 
     @Override
-    public void visitSnapshots(SnapshotVisitor snapshotVisitor) {
-        rootNode.accept(
-            (node, parent) -> node.getSnapshot().ifPresent(snapshot -> {
-                if (snapshot instanceof CompleteFileSystemLocationSnapshot) {
-                    snapshotVisitor.visitSnapshot((CompleteFileSystemLocationSnapshot) snapshot, !(parent instanceof CompleteFileSystemLocationSnapshot));
-                }
-            }),
-            null
-        );
+    public void visitSnapshotRoots(SnapshotVisitor snapshotVisitor) {
+        rootNode.accept(snapshotVisitor);
     }
 
     private enum EmptySnapshotHierarchy implements SnapshotHierarchy {
@@ -132,6 +124,6 @@ public class DefaultSnapshotHierarchy implements SnapshotHierarchy {
         }
 
         @Override
-        public void visitSnapshots(SnapshotVisitor snapshotVisitor) {}
+        public void visitSnapshotRoots(SnapshotVisitor snapshotVisitor) {}
     }
 }

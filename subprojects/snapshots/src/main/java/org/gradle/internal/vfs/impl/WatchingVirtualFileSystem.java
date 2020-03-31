@@ -21,7 +21,10 @@ import com.google.common.collect.Multiset;
 import org.gradle.internal.file.DefaultFileHierarchySet;
 import org.gradle.internal.file.FileHierarchySet;
 import org.gradle.internal.file.FileType;
+import org.gradle.internal.snapshot.CompleteDirectorySnapshot;
+import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot;
 import org.gradle.internal.snapshot.FileSystemNode;
+import org.gradle.internal.snapshot.FileSystemSnapshotVisitor;
 import org.gradle.internal.vfs.SnapshotHierarchy;
 import org.gradle.internal.vfs.WatchingAwareVirtualFileSystem;
 import org.gradle.internal.vfs.watch.FileWatcherRegistry;
@@ -310,7 +313,22 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
 
     private VirtualFileSystemStatistics getStatistics() {
         EnumMultiset<FileType> retained = EnumMultiset.create(FileType.class);
-        getRoot().get().visitSnapshots((snapshot, rootOfCompleteHierarchy) -> retained.add(snapshot.getType()));
+        getRoot().get().visitSnapshotRoots(snapshot -> snapshot.accept(new FileSystemSnapshotVisitor() {
+            @Override
+            public boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
+                retained.add(directorySnapshot.getType());
+                return true;
+            }
+
+            @Override
+            public void visitFile(CompleteFileSystemLocationSnapshot fileSnapshot) {
+                retained.add(fileSnapshot.getType());
+            }
+
+            @Override
+            public void postVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
+            }
+        }));
         return new VirtualFileSystemStatistics(retained);
     }
 

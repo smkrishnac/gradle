@@ -63,7 +63,7 @@ public interface FileSystemNode {
      */
     FileSystemNode withPathToParent(String newPathToParent);
 
-    void accept(NodeVisitor visitor, @Nullable FileSystemNode parent);
+    void accept(SnapshotHierarchy.SnapshotVisitor snapshotVisitor);
 
     interface NodeVisitor {
         void visitNode(FileSystemNode node, @Nullable FileSystemNode parent);

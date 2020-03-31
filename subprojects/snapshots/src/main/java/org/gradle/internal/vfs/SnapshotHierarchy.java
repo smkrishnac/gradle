@@ -62,10 +62,10 @@ public interface SnapshotHierarchy {
     @CheckReturnValue
     SnapshotHierarchy empty();
 
-    void visitSnapshots(SnapshotVisitor snapshotVisitor);
+    void visitSnapshotRoots(SnapshotVisitor snapshotVisitor);
 
     interface SnapshotVisitor {
-        void visitSnapshot(CompleteFileSystemLocationSnapshot snapshot, boolean rootOfCompleteHierarchy);
+        void visitSnapshotRoot(CompleteFileSystemLocationSnapshot snapshot);
     }
 
     interface ChangeListener {

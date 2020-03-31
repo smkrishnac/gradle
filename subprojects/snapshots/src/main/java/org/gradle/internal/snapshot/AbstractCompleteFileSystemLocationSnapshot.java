@@ -18,7 +18,6 @@ package org.gradle.internal.snapshot;
 
 import org.gradle.internal.vfs.SnapshotHierarchy;
 
-import javax.annotation.Nullable;
 import java.util.Optional;
 
 public abstract class AbstractCompleteFileSystemLocationSnapshot implements CompleteFileSystemLocationSnapshot {
@@ -52,6 +51,11 @@ public abstract class AbstractCompleteFileSystemLocationSnapshot implements Comp
     @Override
     public CompleteFileSystemLocationSnapshot store(VfsRelativePath relativePath, CaseSensitivity caseSensitivity, MetadataSnapshot snapshot, SnapshotHierarchy.ChangeListener changeListener) {
         return this;
+    }
+
+    @Override
+    public void accept(SnapshotHierarchy.SnapshotVisitor snapshotVisitor) {
+        snapshotVisitor.visitSnapshotRoot(this);
     }
 
     @Override
@@ -123,8 +127,8 @@ public abstract class AbstractCompleteFileSystemLocationSnapshot implements Comp
         }
 
         @Override
-        public void accept(NodeVisitor visitor, @Nullable FileSystemNode parent) {
-            delegate.accept(visitor, parent);
+        public void accept(SnapshotHierarchy.SnapshotVisitor snapshotVisitor) {
+            delegate.accept(snapshotVisitor);
         }
     }
 }

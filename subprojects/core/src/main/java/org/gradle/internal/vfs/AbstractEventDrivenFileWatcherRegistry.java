@@ -67,16 +67,7 @@ public abstract class AbstractEventDrivenFileWatcherRegistry implements FileWatc
 
     private List<CompleteFileSystemLocationSnapshot> getAllSnapshots(Collection<FileSystemNode> nodes) {
         List<CompleteFileSystemLocationSnapshot> snapshots = new ArrayList<>();
-        nodes.forEach(node0 -> node0.accept(
-            (node, parent) -> node.getSnapshot().ifPresent(snapshot -> {
-                if (snapshot instanceof CompleteFileSystemLocationSnapshot) {
-                    if (!(parent instanceof CompleteFileSystemLocationSnapshot)) {
-                        snapshots.add((CompleteFileSystemLocationSnapshot) snapshot);
-                    }
-                }
-            }),
-            null
-        ));
+        nodes.forEach(rootNode -> rootNode.accept(snapshots::add));
         return snapshots;
     }
 
