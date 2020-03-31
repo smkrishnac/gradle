@@ -98,7 +98,17 @@ public class CompleteDirectorySnapshot extends AbstractCompleteFileSystemLocatio
                 boolean completeChildRemoved = childPathLength == relativePath.length();
                 Optional<FileSystemNode> invalidated = completeChildRemoved
                     ? Optional.empty()
-                    : foundChild.invalidate(relativePath.suffixStartingFrom(childPathLength + 1), caseSensitivity, changeListener);
+                    : foundChild.invalidate(relativePath.suffixStartingFrom(childPathLength + 1), caseSensitivity, new SnapshotHierarchy.ChangeListener() {
+                    @Override
+                    public void nodeRemoved(FileSystemNode node) {
+                        // the parent already has been removed. No children need to be removed.
+                    }
+
+                    @Override
+                    public void nodeAdded(FileSystemNode node) {
+                        changeListener.nodeAdded(node);
+                    }
+                });
                 children.forEach(child -> {
                     if (child != foundChild) {
                         changeListener.nodeAdded(child);
