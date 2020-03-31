@@ -78,8 +78,11 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
 
     private volatile boolean consumeEvents = true;
 
-    private final VirtualFileSystemChangeListener changeListener = (removedNodes, addedNodes) ->
-        updateWatchRegistry(watchRegistry -> watchRegistry.changed(removedNodes, addedNodes));
+    private final VirtualFileSystemChangeListener changeListener = (removedNodes, addedNodes) -> {
+        if (!removedNodes.isEmpty() || !addedNodes.isEmpty()) {
+            updateWatchRegistry(watchRegistry -> watchRegistry.changed(removedNodes, addedNodes));
+        }
+    };
 
     public interface ListenerRegistration {
         void addListener(VirtualFileSystemChangeListener changeListener);
@@ -129,7 +132,9 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
                                     }
                                 };
                                 getRoot().updateAndGet(root -> root.invalidate(absolutePath, changeListener));
-                                updateWatchRegistry(watchRegistry -> watchRegistry.changed(removedNodes, addedNodes));
+                                if (!removedNodes.isEmpty() || !addedNodes.isEmpty()) {
+                                    updateWatchRegistry(watchRegistry -> watchRegistry.changed(removedNodes, addedNodes));
+                                }
                             }
                         }
                     } catch (Exception e) {
