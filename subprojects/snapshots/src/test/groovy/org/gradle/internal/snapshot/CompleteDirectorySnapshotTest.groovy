@@ -60,7 +60,7 @@ class CompleteDirectorySnapshotTest extends AbstractSnapshotWithChildrenTest<Fil
         resultRoot instanceof PartialDirectorySnapshot
         resultRoot.children == childrenWithSelectedChildRemoved()
         resultRoot.pathToParent == initialRoot.pathToParent
-        removedSnapshots == [initialRoot.getSnapshot().get(), selectedChild]
+        removedSnapshots == [initialRoot.getSnapshot().get()]
         addedSnapshots == childrenWithSelectedChildRemoved()
         interaction { noMoreInteractions() }
 

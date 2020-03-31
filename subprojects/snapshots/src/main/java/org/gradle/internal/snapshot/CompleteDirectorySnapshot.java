@@ -105,9 +105,6 @@ public class CompleteDirectorySnapshot extends AbstractCompleteFileSystemLocatio
                 CompleteFileSystemLocationSnapshot foundChild = children.get(childIndex);
                 int childPathLength = foundChild.getPathToParent().length();
                 boolean completeChildRemoved = childPathLength == relativePath.length();
-                if (completeChildRemoved) {
-                    changeListener.nodeRemoved(foundChild);
-                }
                 Optional<FileSystemNode> invalidated = completeChildRemoved
                     ? Optional.empty()
                     : foundChild.invalidate(relativePath.suffixStartingFrom(childPathLength + 1), caseSensitivity, changeListener);
