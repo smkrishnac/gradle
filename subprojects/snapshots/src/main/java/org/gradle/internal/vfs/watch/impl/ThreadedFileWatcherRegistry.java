@@ -76,21 +76,38 @@ public class ThreadedFileWatcherRegistry implements FileWatcherRegistry {
 
     @Override
     public void close() throws IOException {
-        closed = true;
         try {
-            executorService.submit(() -> {
-                delegate.close();
-                return null;
-            }).get(2, TimeUnit.SECONDS);
-            executorService.shutdown();
+            Future<?> closer = closeAsynchronously();
+            closer.get(2, TimeUnit.SECONDS);
             executorService.awaitTermination(2, TimeUnit.SECONDS);
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            throw new RuntimeException("Failed to stop executer service");
+            throw new RuntimeException("Failed to stop executer service", e);
         }
+    }
+
+    public Future<?> closeAsynchronously() {
+        if (!closed) {
+            closed = true;
+            Future<Object> closingFuture = executorService.submit(() -> {
+                delegate.close();
+                return null;
+            });
+            executorService.shutdown();
+            return closingFuture;
+        }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public void changed(Collection<FileSystemNode> removedNodes, Collection<FileSystemNode> addedNodes) {
-        submitAction(watcher -> watcher.changed(removedNodes, addedNodes));
+        try {
+            changedAsynchronously(removedNodes, addedNodes).get(2, TimeUnit.SECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            throw new RuntimeException("Failed to update watches", e);
+        }
+    }
+
+    public Future<?> changedAsynchronously(Collection<FileSystemNode> removedNodes, Collection<FileSystemNode> addedNodes) {
+        return submitAction(watcher -> watcher.changed(removedNodes, addedNodes));
     }
 }

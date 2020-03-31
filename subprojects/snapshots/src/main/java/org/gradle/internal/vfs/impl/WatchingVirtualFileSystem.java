@@ -53,7 +53,7 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
     private final ListenerRegistration listenerRegistration;
     private final Predicate<String> watchFilter;
     private final AtomicReference<FileHierarchySet> producedByCurrentBuild = new AtomicReference<>(DefaultFileHierarchySet.of());
-    private FileWatcherRegistry watchRegistry;
+    private ThreadedFileWatcherRegistry watchRegistry;
 
     private final VirtualFileSystemChangeListener changeListener = (removedNodes, addedNodes) -> {
         if (watchRegistry != null) {
@@ -154,7 +154,7 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
                         };
                         getRoot().updateAndGet(root -> root.invalidate(absolutePath, changeListener));
                         if (WatchingVirtualFileSystem.this.watchRegistry != null) {
-                            WatchingVirtualFileSystem.this.watchRegistry.changed(removedNodes, addedNodes);
+                            WatchingVirtualFileSystem.this.watchRegistry.changedAsynchronously(removedNodes, addedNodes);
                         }
                     }
                 }
@@ -162,11 +162,13 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
                 @Override
                 public void handleLostState() {
                     LOGGER.warn("Dropped VFS state due to lost state");
-                    stopWatching();
                     invalidateAll();
+                    if (watchRegistry != null) {
+                        watchRegistry.closeAsynchronously();
+                    }
                 }
             });
-            this.watchRegistry = new ThreadedFileWatcherRegistry(delegate);
+            watchRegistry = new ThreadedFileWatcherRegistry(delegate);
             listenerRegistration.addListener(changeListener);
             long endTime = System.currentTimeMillis() - startTime;
             LOGGER.warn("Spent {} ms registering watches for file system events", endTime);
@@ -218,10 +220,12 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
             LOGGER.warn("Received {} file system events {}", statistics.getNumberOfReceivedEvents(), eventsFor);
             if (statistics.isUnknownEventEncountered()) {
                 LOGGER.warn("Dropped VFS state due to lost state");
+                stopWatching();
             }
             if (statistics.getErrorWhileReceivingFileChanges().isPresent()) {
                 LOGGER.warn("Dropped VFS state due to error while receiving file changes", statistics.getErrorWhileReceivingFileChanges().get());
                 invalidateAll();
+                stopWatching();
             }
         }
     }
