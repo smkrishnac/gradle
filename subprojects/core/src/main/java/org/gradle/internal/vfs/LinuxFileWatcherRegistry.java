@@ -122,7 +122,10 @@ public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegi
         AtomicLongMap<String> changedDirectories = AtomicLongMap.create();
         mustWatchDirectories.forEach(changedDirectories::decrementAndGet);
         mustWatchDirectories.clear();
-        updatedWatchDirectories.stream().map(File::getAbsolutePath).forEach(mustWatchDirectories::add);
+        updatedWatchDirectories.stream()
+            .filter(File::isDirectory)
+            .map(File::getAbsolutePath)
+            .forEach(mustWatchDirectories::add);
         mustWatchDirectories.forEach(changedDirectories::incrementAndGet);
         updateWatchedDirectories(changedDirectories);
 
