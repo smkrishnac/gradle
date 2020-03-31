@@ -128,7 +128,6 @@ public abstract class AbstractEventDrivenFileWatcherRegistry implements FileWatc
 
     @Override
     public void close() throws IOException {
-        LOGGER.warn("Closing watcher");
         watcher.close();
     }
 
