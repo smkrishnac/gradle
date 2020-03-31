@@ -151,9 +151,9 @@ public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegi
             }
         });
         if (watchedRoots.isEmpty()) {
-            LOGGER.warn("Not watching anything anymore");
+            LOGGER.info("Not watching anything anymore");
         }
-        LOGGER.warn("Watching {} directory hierarchies to track changes", watchedRoots.entrySet().size());
+        LOGGER.info("Watching {} directory hierarchies to track changes", watchedRoots.entrySet().size());
         try {
             getWatcher().stopWatching(watchRootsToRemove);
             getWatcher().startWatching(watchRootsToAdd);

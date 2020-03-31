@@ -52,7 +52,7 @@ public class ThreadedFileWatcherRegistry implements FileWatcherRegistry {
         try {
             Stopwatch stopWatch = Stopwatch.createStarted();
             submitAction(watcher -> watcher.updateMustWatchDirectories(updatedWatchDirectories)).get(2, TimeUnit.SECONDS);
-            LOGGER.warn("Updating watched directories took {}ms", stopWatch.elapsed(TimeUnit.MILLISECONDS));
+            LOGGER.info("Updating watched directories took {}ms", stopWatch.elapsed(TimeUnit.MILLISECONDS));
         } catch (Exception e) {
             throw new WatchingNotSupportedException("Error while updating must watch directories", e);
         }

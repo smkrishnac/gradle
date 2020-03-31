@@ -94,14 +94,14 @@ public abstract class AbstractHierarchicalFileWatcherRegistry extends AbstractEv
     private void updateWatchedDirectories(Set<Path> newWatchRoots) {
         Set<Path> watchRootsToRemove = new HashSet<>(watchedRoots);
         if (newWatchRoots.isEmpty()) {
-            LOGGER.warn("Not watching anything anymore");
+            LOGGER.info("Not watching anything anymore");
         }
         watchRootsToRemove.removeAll(newWatchRoots);
         newWatchRoots.removeAll(watchedRoots);
         if (newWatchRoots.isEmpty() && watchRootsToRemove.isEmpty()) {
             return;
         }
-        LOGGER.warn("Watching {} directory hierarchies to track changes", newWatchRoots.size());
+        LOGGER.info("Watching {} directory hierarchies to track changes", newWatchRoots.size());
         getWatcher().startWatching(newWatchRoots.stream()
             .map(Path::toFile)
             .collect(Collectors.toList())
