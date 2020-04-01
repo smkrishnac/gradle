@@ -170,7 +170,11 @@ public class DefaultVirtualFileSystem extends AbstractVirtualFileSystem {
                 addedNodes.add(node);
             }
         };
-        root.updateAndGet(current -> updateFunction.update(current, changeListener));
+        root.updateAndGet(current -> {
+            removedNodes.clear();
+            addedNodes.clear();
+            return updateFunction.update(current, changeListener);
+        });
         this.changeListener.changed(removedNodes, addedNodes);
     }
 
@@ -192,13 +196,9 @@ public class DefaultVirtualFileSystem extends AbstractVirtualFileSystem {
 
     @Override
     public void update(Iterable<String> locations, Runnable action) {
-        updateRoot((root, changeListener) -> {
-            SnapshotHierarchy result = root;
-            for (String location : locations) {
-                result = result.invalidate(location, changeListener);
-            }
-            return result;
-        });
+        for (String location : locations) {
+            updateRoot((root, changeListener) -> root.invalidate(location, changeListener));
+        }
         action.run();
     }
 

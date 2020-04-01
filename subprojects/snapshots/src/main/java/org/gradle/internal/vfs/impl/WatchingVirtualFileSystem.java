@@ -133,7 +133,11 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
                                         addedNodes.add(node);
                                     }
                                 };
-                                getRoot().updateAndGet(root -> root.invalidate(absolutePath, changeListener));
+                                getRoot().updateAndGet(root -> {
+                                    removedNodes.clear();
+                                    addedNodes.clear();
+                                    return root.invalidate(absolutePath, changeListener);
+                                });
                                 if (!removedNodes.isEmpty() || !addedNodes.isEmpty()) {
                                     updateWatchRegistry(watchRegistry -> watchRegistry.changed(removedNodes, addedNodes));
                                 }
