@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -46,6 +47,7 @@ import java.util.stream.Collectors;
 public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegistry {
     private static final Logger LOGGER = LoggerFactory.getLogger(LinuxFileWatcherRegistry.class);
 
+    private final Map<String, CompleteFileSystemLocationSnapshot> watchedSnapshots = new HashMap<>();
     private final Multiset<String> watchedRoots = HashMultiset.create();
     private final Set<String> mustWatchDirectories = new HashSet<>();
     private final Map<String, ImmutableList<String>> watchedRootsForSnapshot = new HashMap<>();
@@ -63,11 +65,13 @@ public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegi
         Map<String, Integer> changedWatchedDirectories = new HashMap<>();
 
         removedSnapshots.forEach(snapshot -> {
+            watchedSnapshots.remove(snapshot.getAbsolutePath());
             ImmutableList<String> previousWatchedRoots = watchedRootsForSnapshot.remove(snapshot.getAbsolutePath());
             previousWatchedRoots.forEach(path -> decrement(path, changedWatchedDirectories));
             snapshot.accept(new OnlyVisitSubDirectories(path -> decrement(path, changedWatchedDirectories)));
         });
         addedSnapshots.forEach(snapshot -> {
+            watchedSnapshots.put(snapshot.getAbsolutePath(), snapshot);
             ImmutableList<String> directoriesToWatchForRoot = ImmutableList.copyOf(WatchRootUtil.getDirectoriesToWatch(snapshot).stream()
                 .map(Path::toString).collect(Collectors.toList()));
             watchedRootsForSnapshot.put(snapshot.getAbsolutePath(), directoriesToWatchForRoot);
@@ -112,6 +116,7 @@ public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegi
                 }
             }
         });
+        sanityCheckWatchedDirectories();
         if (watchedRoots.isEmpty()) {
             LOGGER.info("Not watching anything anymore");
         }
@@ -124,6 +129,21 @@ public class LinuxFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegi
                 throw new WatchingNotSupportedException("Unable to watch same file twice via different paths: " + e.getMessage(), e);
             }
             throw e;
+        }
+    }
+
+    private void sanityCheckWatchedDirectories() {
+        Set<String> shouldWatchDirectories = new HashSet<>();
+        watchedSnapshots.values().forEach(snapshot -> {
+            Optional.ofNullable(watchedRootsForSnapshot.get(snapshot.getAbsolutePath()))
+                .map(Collection::stream)
+                .orElse(WatchRootUtil.getDirectoriesToWatch(snapshot).stream().map(Path::toString))
+                .forEach(shouldWatchDirectories::add);
+            snapshot.accept(new OnlyVisitSubDirectories(shouldWatchDirectories::add));
+        });
+        shouldWatchDirectories.addAll(mustWatchDirectories);
+        if (!shouldWatchDirectories.equals(watchedRoots.elementSet())) {
+            throw new RuntimeException("Should watch different directories, watched: " + watchedRoots.elementSet() + " should watch: " + shouldWatchDirectories);
         }
     }
 

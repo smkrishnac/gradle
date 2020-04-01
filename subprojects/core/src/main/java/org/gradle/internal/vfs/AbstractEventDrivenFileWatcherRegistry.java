@@ -16,6 +16,7 @@
 
 package org.gradle.internal.vfs;
 
+import com.google.common.collect.Sets;
 import net.rubygrapefruit.platform.file.FileWatcher;
 import net.rubygrapefruit.platform.file.FileWatcherCallback;
 import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot;
@@ -30,8 +31,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.gradle.internal.vfs.watch.FileWatcherRegistry.Type.CREATED;
 import static org.gradle.internal.vfs.watch.FileWatcherRegistry.Type.INVALIDATE;
@@ -60,7 +63,33 @@ public abstract class AbstractEventDrivenFileWatcherRegistry implements FileWatc
 
     @Override
     public void changed(Collection<FileSystemNode> removedNodes, Collection<FileSystemNode> addedNodes) {
-        handleChanges(getAllSnapshots(removedNodes), getAllSnapshots(addedNodes));
+        List<CompleteFileSystemLocationSnapshot> removedSnapshots = getAllSnapshots(removedNodes);
+        List<CompleteFileSystemLocationSnapshot> addedSnapshots = getAllSnapshots(addedNodes);
+        sanityCheckSnapshots(removedSnapshots, addedSnapshots);
+        handleChanges(removedSnapshots, addedSnapshots);
+    }
+
+    private void sanityCheckSnapshots(List<CompleteFileSystemLocationSnapshot> removedSnapshots, List<CompleteFileSystemLocationSnapshot> addedSnapshots) {
+        Set<String> removedPaths = removedSnapshots.stream()
+            .map(CompleteFileSystemLocationSnapshot::getAbsolutePath)
+            .collect(Collectors.toSet());
+        Set<String> addedPaths = addedSnapshots.stream()
+            .map(CompleteFileSystemLocationSnapshot::getAbsolutePath)
+            .collect(Collectors.toSet());
+        if (removedPaths.size() != removedSnapshots.size()) {
+            throw new RuntimeException("Duplicate removed snapshots: " + removedSnapshots.stream()
+                .map(CompleteFileSystemLocationSnapshot::getAbsolutePath)
+                .collect(Collectors.joining(", ")));
+        }
+        if (addedPaths.size() != addedSnapshots.size()) {
+            throw new RuntimeException("Duplicate added snapshots: " + addedSnapshots.stream()
+                .map(CompleteFileSystemLocationSnapshot::getAbsolutePath)
+                .collect(Collectors.joining(", ")));
+        }
+        Set<String> addedAndRemovedPaths = Sets.intersection(removedPaths, addedPaths);
+        if (!addedAndRemovedPaths.isEmpty()) {
+            throw new RuntimeException("Same paths have been added and removed: " + addedAndRemovedPaths);
+        }
     }
 
     protected abstract void handleChanges(Collection<CompleteFileSystemLocationSnapshot> removedSnapshots, Collection<CompleteFileSystemLocationSnapshot> addedSnapshots);

@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 public abstract class AbstractHierarchicalFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegistry {
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractHierarchicalFileWatcherRegistry.class);
 
+    private final Map<String, CompleteFileSystemLocationSnapshot> watchedSnapshots = new HashMap<>();
     private final Map<String, ImmutableList<Path>> watchedRootsForSnapshot = new HashMap<>();
     private final Multiset<Path> shouldWatchDirectories = HashMultiset.create();
     private final Set<Path> watchedRoots = new HashSet<>();
@@ -51,10 +52,12 @@ public abstract class AbstractHierarchicalFileWatcherRegistry extends AbstractEv
     @Override
     protected void handleChanges(Collection<CompleteFileSystemLocationSnapshot> removedSnapshots, Collection<CompleteFileSystemLocationSnapshot> addedSnapshots) {
         removedSnapshots.forEach(snapshot -> {
+            watchedSnapshots.remove(snapshot.getAbsolutePath());
             ImmutableList<Path> previouslyWatchedRootsForSnapshot = watchedRootsForSnapshot.remove(snapshot.getAbsolutePath());
             Multisets.removeOccurrences(shouldWatchDirectories, previouslyWatchedRootsForSnapshot);
         });
         addedSnapshots.forEach(snapshot -> {
+            watchedSnapshots.put(snapshot.getAbsolutePath(), snapshot);
             ImmutableList<Path> directoriesToWatch = WatchRootUtil.getDirectoriesToWatch(snapshot);
             shouldWatchDirectories.addAll(directoriesToWatch);
             watchedRootsForSnapshot.put(snapshot.getAbsolutePath(), directoriesToWatch);
@@ -76,6 +79,7 @@ public abstract class AbstractHierarchicalFileWatcherRegistry extends AbstractEv
     }
 
     private void updateWatchedDirectories() {
+        sanityCheckShouldWatchDirectories();
         Set<String> mustWatchDirectoryPrefixes = ImmutableSet.copyOf(
             mustWatchDirectories.stream()
                 .map(path -> path.toString() + File.separator)
@@ -88,8 +92,17 @@ public abstract class AbstractHierarchicalFileWatcherRegistry extends AbstractEv
             })
             .collect(Collectors.toSet());
         directoriesToWatch.addAll(mustWatchDirectories);
-
         updateWatchedDirectories(WatchRootUtil.resolveRootsToWatchFromPaths(directoriesToWatch));
+    }
+
+    private void sanityCheckShouldWatchDirectories() {
+        Set<Path> shouldWatchDirectoriesFromSnapshots = watchedSnapshots.values().stream()
+            .flatMap(snapshot -> watchedRootsForSnapshot.getOrDefault(snapshot.getAbsolutePath(), WatchRootUtil.getDirectoriesToWatch(snapshot)).stream())
+            .collect(Collectors.toSet());
+        shouldWatchDirectoriesFromSnapshots.addAll(mustWatchDirectories);
+        if (!shouldWatchDirectoriesFromSnapshots.equals(shouldWatchDirectories.elementSet())) {
+            throw new RuntimeException("Should watch different directories, watched: " + shouldWatchDirectories.elementSet() + " should watch: " + shouldWatchDirectoriesFromSnapshots);
+        }
     }
 
     private void updateWatchedDirectories(Set<Path> newWatchRoots) {
