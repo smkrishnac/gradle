@@ -87,12 +87,6 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
         }
     };
 
-    public interface ListenerRegistration {
-        void addListener(VirtualFileSystemChangeListener changeListener);
-
-        void removeListener(VirtualFileSystemChangeListener changeListener);
-    }
-
     public WatchingVirtualFileSystem(
         FileWatcherRegistryFactory watcherRegistryFactory,
         AbstractVirtualFileSystem delegate,
@@ -120,9 +114,23 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
                             LOGGER.debug("Handling VFS change {} {}", type, path);
                             String absolutePath = path.toString();
                             if (!(buildRunning && producedByCurrentBuild.get().contains(absolutePath))) {
-                                List<FileSystemNode> removedNodes = new ArrayList<>();
-                                List<FileSystemNode> addedNodes = new ArrayList<>();
-                                SnapshotHierarchy.ChangeListener changeListener = new SnapshotHierarchy.ChangeListener() {
+                                ChangeListenerFactory.LifecycleAwareChangeListener changeListener = new ChangeListenerFactory.LifecycleAwareChangeListener() {
+                                    private final List<FileSystemNode> removedNodes = new ArrayList<>();
+                                    private final List<FileSystemNode> addedNodes = new ArrayList<>();
+
+                                    @Override
+                                    public void start() {
+                                        removedNodes.clear();
+                                        addedNodes.clear();
+                                    }
+
+                                    @Override
+                                    public void finish() {
+                                        if (!removedNodes.isEmpty() || !addedNodes.isEmpty()) {
+                                            updateWatchRegistry(watchRegistry -> watchRegistry.changed(removedNodes, addedNodes));
+                                        }
+                                    }
+
                                     @Override
                                     public void nodeRemoved(FileSystemNode node) {
                                         removedNodes.add(node);
@@ -133,14 +141,7 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
                                         addedNodes.add(node);
                                     }
                                 };
-                                getRoot().updateAndGet(root -> {
-                                    removedNodes.clear();
-                                    addedNodes.clear();
-                                    return root.invalidate(absolutePath, changeListener);
-                                });
-                                if (!removedNodes.isEmpty() || !addedNodes.isEmpty()) {
-                                    updateWatchRegistry(watchRegistry -> watchRegistry.changed(removedNodes, addedNodes));
-                                }
+                                getRoot().update(root -> root.invalidate(absolutePath, changeListener), changeListener);
                             }
                         }
                     } catch (Exception e) {
@@ -171,7 +172,7 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
         }
     }
 
-    private synchronized void updateWatchRegistry(Consumer<FileWatcherRegistry> updateFunction) {
+    private void updateWatchRegistry(Consumer<FileWatcherRegistry> updateFunction) {
         updateWatchRegistry(updateFunction, () -> {});
     }
 
@@ -265,13 +266,13 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
                 fileWatcherRegistry.close();
             } catch (IOException ex) {
                 LOGGER.error("Couldn't fetch file changes, dropping VFS state", ex);
-                getRoot().updateAndGet(SnapshotHierarchy::empty);
+                getRoot().update(SnapshotHierarchy::empty, ChangeListenerFactory.LifecycleAwareChangeListener.NOOP);
             } finally {
                 watchRegistry = null;
                 fileEvents.clear();
             }
         });
-        getRoot().updateAndGet(SnapshotHierarchy::empty);
+        getRoot().update(SnapshotHierarchy::empty, ChangeListenerFactory.LifecycleAwareChangeListener.NOOP);
     }
 
     private void handleWatcherRegistryEvents(String eventsFor) {

@@ -29,23 +29,22 @@ import org.gradle.internal.snapshot.FileMetadata;
 import org.gradle.internal.snapshot.FileSystemSnapshot;
 import org.gradle.internal.snapshot.MissingFileSnapshot;
 import org.gradle.internal.snapshot.RegularFileSnapshot;
+import org.gradle.internal.snapshot.SnapshotHierarchyReference;
 import org.gradle.internal.snapshot.SnapshottingFilter;
 import org.gradle.internal.snapshot.impl.DirectorySnapshotter;
 import org.gradle.internal.snapshot.impl.FileSystemSnapshotFilter;
 import org.gradle.internal.vfs.SnapshotHierarchy;
-import org.gradle.internal.vfs.SnapshotHierarchy.ChangeListener;
 
 import java.io.File;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class DefaultVirtualFileSystem extends AbstractVirtualFileSystem {
-    private final AtomicReference<SnapshotHierarchy> root;
+    private final SnapshotHierarchyReference root;
     private final Stat stat;
     private final ChangeListenerFactory delegatingListener;
     private final DirectorySnapshotter directorySnapshotter;
@@ -57,7 +56,7 @@ public class DefaultVirtualFileSystem extends AbstractVirtualFileSystem {
         this.delegatingListener = changeListenerFactory;
         this.directorySnapshotter = new DirectorySnapshotter(hasher, stringInterner, defaultExcludes);
         this.hasher = hasher;
-        this.root = new AtomicReference<>(DefaultSnapshotHierarchy.empty(caseSensitivity));
+        this.root = new SnapshotHierarchyReference(DefaultSnapshotHierarchy.empty(caseSensitivity));
     }
 
     @Override
@@ -154,19 +153,15 @@ public class DefaultVirtualFileSystem extends AbstractVirtualFileSystem {
 
     private void updateRoot(UpdateFunction updateFunction) {
         DelegatingChangeListenerFactory.LifecycleAwareChangeListener changeListener = delegatingListener.newChangeListener();
-        root.updateAndGet(current -> {
-            changeListener.start();
-            return updateFunction.update(current, changeListener);
-        });
-        changeListener.finish();
+        root.update(current -> updateFunction.update(current, changeListener), changeListener);
     }
 
     interface UpdateFunction {
-        SnapshotHierarchy update(SnapshotHierarchy current, ChangeListener changeListener);
+        SnapshotHierarchy update(SnapshotHierarchy current, SnapshotHierarchy.ChangeListener changeListener);
     }
 
     @Override
-    AtomicReference<SnapshotHierarchy> getRoot() {
+    SnapshotHierarchyReference getRoot() {
         return root;
     }
 

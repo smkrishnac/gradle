@@ -17,12 +17,11 @@
 package org.gradle.internal.vfs.impl
 
 import org.gradle.internal.snapshot.CaseSensitivity
+import org.gradle.internal.snapshot.SnapshotHierarchyReference
 import org.gradle.internal.vfs.SnapshotHierarchy
 import org.gradle.internal.vfs.watch.FileWatcherRegistry
 import org.gradle.internal.vfs.watch.FileWatcherRegistryFactory
 import spock.lang.Specification
-
-import java.util.concurrent.atomic.AtomicReference
 
 class WatchingVirtualFileSystemTest extends Specification {
     def delegate = Mock(AbstractVirtualFileSystem)
@@ -30,7 +29,7 @@ class WatchingVirtualFileSystemTest extends Specification {
     def watcherRegistry = Mock(FileWatcherRegistry)
     def changeListenerFactory = Mock(DelegatingChangeListenerFactory)
     def rootHierarchy = Mock(SnapshotHierarchy)
-    def rootReference = new AtomicReference(rootHierarchy)
+    def rootReference = new SnapshotHierarchyReference(rootHierarchy)
     def watchingVirtualFileSystem = new WatchingVirtualFileSystem(watcherRegistryFactory, delegate, changeListenerFactory, { -> true })
     def snapshotHierarchy = DefaultSnapshotHierarchy.empty(CaseSensitivity.CASE_SENSITIVE)
 
@@ -53,7 +52,7 @@ class WatchingVirtualFileSystemTest extends Specification {
         when:
         watchingVirtualFileSystem.afterStart(true)
         then:
-        _ * delegate.getRoot() >> new AtomicReference<>(snapshotHierarchy)
+        _ * delegate.getRoot() >> new SnapshotHierarchyReference(snapshotHierarchy)
         1 * watcherRegistryFactory.startWatcher(_, _) >> watcherRegistry
         1 * changeListenerFactory.setVfsChangeListener(_)
         1 * watcherRegistry.getAndResetStatistics() >> Stub(FileWatcherRegistry.FileWatchingStatistics)
@@ -62,7 +61,7 @@ class WatchingVirtualFileSystemTest extends Specification {
         when:
         watchingVirtualFileSystem.beforeComplete(true)
         then:
-        _ * delegate.getRoot() >> new AtomicReference<>(snapshotHierarchy)
+        _ * delegate.getRoot() >> new SnapshotHierarchyReference(snapshotHierarchy)
         1 * watcherRegistry.getAndResetStatistics() >> Stub(FileWatcherRegistry.FileWatchingStatistics)
         0 * _
 
@@ -80,7 +79,7 @@ class WatchingVirtualFileSystemTest extends Specification {
         when:
         watchingVirtualFileSystem.afterStart(true)
         then:
-        _ * delegate.getRoot() >> new AtomicReference<>(snapshotHierarchy)
+        _ * delegate.getRoot() >> new SnapshotHierarchyReference(snapshotHierarchy)
         1 * watcherRegistryFactory.startWatcher(_, _) >> watcherRegistry
         1 * watcherRegistry.getAndResetStatistics() >> Stub(FileWatcherRegistry.FileWatchingStatistics)
         1 * changeListenerFactory.setVfsChangeListener(_)
@@ -89,14 +88,14 @@ class WatchingVirtualFileSystemTest extends Specification {
         when:
         watchingVirtualFileSystem.beforeComplete(true)
         then:
-        _ * delegate.getRoot() >> new AtomicReference<>(snapshotHierarchy)
+        _ * delegate.getRoot() >> new SnapshotHierarchyReference(snapshotHierarchy)
         1 * watcherRegistry.getAndResetStatistics() >> Stub(FileWatcherRegistry.FileWatchingStatistics)
         0 * _
 
         when:
         watchingVirtualFileSystem.afterStart(true)
         then:
-        _ * delegate.getRoot() >> new AtomicReference<>(snapshotHierarchy)
+        _ * delegate.getRoot() >> new SnapshotHierarchyReference(snapshotHierarchy)
         1 * watcherRegistry.getAndResetStatistics() >> Stub(FileWatcherRegistry.FileWatchingStatistics)
         0 * _
     }
