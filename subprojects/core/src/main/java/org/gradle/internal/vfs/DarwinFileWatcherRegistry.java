@@ -23,7 +23,7 @@ import org.gradle.internal.vfs.watch.FileWatcherRegistryFactory;
 
 import java.util.concurrent.TimeUnit;
 
-public class DarwinFileWatcherRegistry extends AbstractHierarchicalFileWatcherRegistry {
+public class DarwinFileWatcherRegistry extends AbstractEventDrivenFileWatcherRegistry {
 
     public DarwinFileWatcherRegistry(ChangeHandler handler) {
         super(
@@ -33,7 +33,8 @@ public class DarwinFileWatcherRegistry extends AbstractHierarchicalFileWatcherRe
                     20, TimeUnit.MICROSECONDS,
                     callback
                 ),
-            handler
+            handler,
+            HierarchicalFileWatcherUpdater::new
         );
     }
 

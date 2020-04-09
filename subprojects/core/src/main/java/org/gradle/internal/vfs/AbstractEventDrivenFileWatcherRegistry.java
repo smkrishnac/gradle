@@ -19,6 +19,7 @@ package org.gradle.internal.vfs;
 import net.rubygrapefruit.platform.file.FileWatcher;
 import net.rubygrapefruit.platform.file.FileWatcherCallback;
 import org.gradle.internal.vfs.watch.FileWatcherRegistry;
+import org.gradle.internal.vfs.watch.FileWatcherUpdater;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.gradle.internal.vfs.watch.FileWatcherRegistry.Type.CREATED;
 import static org.gradle.internal.vfs.watch.FileWatcherRegistry.Type.INVALIDATE;
@@ -37,13 +39,16 @@ public abstract class AbstractEventDrivenFileWatcherRegistry implements FileWatc
 
     private final FileWatcher watcher;
     private final AtomicReference<MutableFileWatchingStatistics> fileWatchingStatistics = new AtomicReference<>(new MutableFileWatchingStatistics());
+    private final FileWatcherUpdater fileWatcherUpdater;
 
-    public AbstractEventDrivenFileWatcherRegistry(FileWatcherCreator watcherCreator, ChangeHandler handler) {
+    public AbstractEventDrivenFileWatcherRegistry(FileWatcherCreator watcherCreator, ChangeHandler handler, Function<FileWatcher, FileWatcherUpdater> watcherUpdaterCreator) {
         this.watcher = createWatcher(watcherCreator, handler);
+        this.fileWatcherUpdater = watcherUpdaterCreator.apply(watcher);
     }
 
-    public FileWatcher getWatcher() {
-        return watcher;
+    @Override
+    public FileWatcherUpdater getFileWatcherUpdater() {
+        return fileWatcherUpdater;
     }
 
     private FileWatcher createWatcher(FileWatcherCreator watcherCreator, ChangeHandler handler) {
