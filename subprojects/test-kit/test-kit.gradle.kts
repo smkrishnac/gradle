@@ -46,6 +46,10 @@ dependencies {
     integTestRuntimeOnly(project(":testingJunitPlatform"))
 }
 
+classycle {
+    excludePatterns.set(listOf("org/gradle/testkit/runner/internal/**"))
+}
+
 tasks.register<IntegrationTest>("crossVersionTests") {
     description = "Runs the TestKit version compatibility tests"
     systemProperties["org.gradle.integtest.testkit.compatibility"] = "all"
