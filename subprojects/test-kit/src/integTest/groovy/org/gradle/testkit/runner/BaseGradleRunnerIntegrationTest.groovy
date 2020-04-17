@@ -333,7 +333,7 @@ abstract class BaseGradleRunnerIntegrationTest extends AbstractIntegrationSpec {
 
             @Override
             protected boolean isTestEnabled(AbstractMultiTestRunner.TestDetails testDetails) {
-                def gradleVersion = testedGradleDistribution.gradleVersion
+                def gradleVersion = testedGradleDistribution.gradleVersion.baseVersion
 
                 if (testDetails.getAnnotation(InjectsPluginClasspath)) {
                     if (gradleVersion < TESTKIT_FEATURES[InjectsPluginClasspath].since) {
